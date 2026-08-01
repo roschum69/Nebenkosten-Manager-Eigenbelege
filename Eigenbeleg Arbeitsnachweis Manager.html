@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Icon für iPhone / iPad -->
+    <link rel="apple-touch-icon" href="icon.jpg">
+    <!-- Icon für Android, Windows & Mac -->
+    <link rel="icon" type="image/jpeg" href="icon.jpg">
+    <title>Abrechnungs- & Eigenbeleg-Manager - Wittelsbacherstr. 25</title>
+    
+    <!-- FIREBASE SDKs (Compat / Web v9) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-hover: #1d4ed8;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --background: #f1f5f9;
+            --text: #0f172a;
+            --border: #cbd5e1;
+            --card: #ffffff;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: var(--background); color: var(--text); padding: 15px; }
+        .container { max-width: 950px; margin: 0 auto; }
+        
+        /* CLOUD STATUS BAR */
+        .cloud-bar {
+            background: #dcfce7;
+            border: 1px solid #22c55e;
+            color: #15803d;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        /* NAVIGATION / TABS */
+        .tab-nav { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 3px solid var(--primary); padding-bottom: 5px; }
+        .tab-btn { background: #e2e8f0; color: #475569; border: none; padding: 12px 20px; font-size: 1rem; font-weight: bold; border-radius: 8px 8px 0 0; cursor: pointer; transition: all 0.2s; flex: 1; text-align: center; }
+        .tab-btn.active { background: var(--primary); color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        /* CARDS & FORMS */
+        header { text-align: center; padding: 15px 0; background: white; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h1 { font-size: 1.3rem; color: var(--primary); }
+        h2, h3 { color: var(--primary); margin-top: 0; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid var(--border); }
+        .card h2 { font-size: 1.1rem; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #475569; }
+        input, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; }
+        .grid-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; align-items: end; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        
+        /* BUTTONS */
+        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        button:hover { opacity: 0.9; }
+        .btn-sm { padding: 5px 10px; font-size: 0.8rem; width: auto; }
+        .btn-danger { background: var(--danger); }
+        .btn-success { background: var(--success); }
+        .btn-edit { background-color: #2563eb; padding: 6px 10px; font-size: 0.85rem; border-radius: 4px; width: auto; color: white; margin-right: 4px; }
+        .btn-edit:hover { background-color: #1d4ed8; }
+        .btn-gen { background-color: #7c3aed; }
+        .btn-gen:hover { background-color: #6d28d9; }
+        .btn-delete { background-color: #ef4444; padding: 6px 10px; font-size: 0.85rem; border-radius: 4px; width: auto; color: white; }
+        .btn-delete:hover { background-color: #dc2626; }
+        .btn-archive { background-color: #d97706; width: auto; }
+        .btn-archive:hover { background-color: #b45309; }
+        .btn-danger-zone { background-color: #475569; font-size: 0.85rem; width: auto; }
+        .btn-print { background-color: #059669; float: right; width: auto; }
+        .btn-print:hover { background-color: #047857; }
+        .btn-transfer { background-color: #0d9488; width: auto; font-size: 0.85rem; }
+        .btn-transfer:hover { background-color: #0f766e; }
+        .btn-stats { background-color: #4f46e5; font-size: 0.9rem; margin-top: 10px; }
+        .btn-stats:hover { background-color: #4338ca; }
+        
+        /* TABLES */
+        .summary-table, #logTable, .overview-table, .stats-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+        .summary-table th, .summary-table td, #logTable th, #logTable td, .overview-table th, .overview-table td, .stats-table th, .stats-table td { padding: 8px; border: 1px solid var(--border); text-align: left; vertical-align: middle; }
+        .summary-table th, #logTable th, .overview-table th, .stats-table th { background: #f8fafc; color: #334155; }
+        
+        .col-wohnung { width: 20%; }
+        .col-status  { width: 22%; }
+        .col-miete   { width: 23%; }
+        .col-vorsch  { width: 23%; }
+        .col-monate  { width: 12%; }
+        
+        .status-select { font-weight: bold; padding: 8px 2px; text-align: center; }
+        .name-row-td { background: #f8fafc; padding: 6px 12px !important; }
+        .name-container { display: flex; align-items: center; gap: 10px; }
+        .name-container label { margin-bottom: 0; white-space: nowrap; color: #64748b; font-size: 0.8rem; }
+        
+        .cost-row { display: flex; gap: 10px; margin-bottom: 10px; background: #f8fafc; padding: 10px; border-radius: 6px; align-items: center; }
+        .direct-input-section { margin-top: 10px; padding: 15px; background: #fef08a; border-radius: 6px; font-size: 0.9rem; display: none; }
+        .direct-hint { font-size: 0.8rem; color: #64748b; font-style: italic; text-align: center; background: #e2e8f0; padding: 10px; border-radius: 6px; width: 100%; }
+        .live-result-box { margin-top: 15px; padding: 15px; border-radius: 8px; font-size: 1.1rem; font-weight: bold; border-left: 5px solid #cbd5e1; background: #f8fafc; }
+        .generator-card { background: #f3e8ff; border: 1px solid #c084fc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .overview-card { background: #eff6ff; border: 1px solid #93c5fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .filter-card { background: #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .stats-card { background: #e0e7ff; border: 1px solid #818cf8; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: none; }
+        .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: end; }
+        .rate-changer-box { background: #dbeafe; border: 1px solid #60a5fa; padding: 10px; border-radius: 6px; margin-top: 12px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+        .total-box { text-align: right; font-size: 1.2rem; font-weight: bold; margin-top: 15px; color: var(--primary); }
+        
+        /* PRINT AREA FOR MAIN BILL */
+        #printArea { display: none; background: white; color: black; padding: 40px; border: 1px dashed #cbd5e1; border-radius: 8px; margin-top: 20px; font-family: Arial, sans-serif; font-size: 0.95rem; }
+        .print-sender { font-size: 0.9rem; line-height: 1.4; margin-bottom: 30px; }
+        .print-receiver { font-size: 1rem; margin-bottom: 40px; line-height: 1.5; }
+        .print-title-block h2 { font-size: 1.4rem; border-bottom: 2px solid black; padding-bottom: 5px; margin-bottom: 15px; }
+        .print-meta { margin-bottom: 20px; padding: 10px; border: 1px solid #000; background: #f9f9f9; line-height: 1.6; }
+        .print-table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 0.9rem; }
+        .print-table th, .print-table td { border: 1px solid black; padding: 7px 9px; text-align: left; }
+        .print-table th { background: #f2f2f2; }
+        .calculation-block { margin: 20px 0; border: 1px solid black; padding: 15px; background: #fafafa; }
+        .calculation-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #eee; }
+        .calculation-row.total { font-weight: bold; border-top: 2px solid black; border-bottom: 2px solid black; font-size: 1.1rem; margin-top: 10px; padding: 8px 0; }
+        
+        .print-bottom-block { page-break-inside: avoid; break-inside: avoid; margin-top: 20px; }
+        .print-footer { margin-top: 30px; line-height: 1.5; }
+        .btn-back-overview { display: inline-block; background: #64748b; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85rem; margin-bottom: 15px; width: auto; }
+        
+        /* PRINT STYLES FOR EIGENBELEG */
+        .print-header-eb, .signature-field { display: none; }
+
+        /* OPTIMIERTER DRUCK- UND PDF-EXPORTE MUSS DYNAMISCH ANGESPROCHEN WERDEN */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; padding: 0 !important; }
+            
+            /* DUCKSICHT REITER 1 (HAUPTABRECHNUNG) */
+            body.print-mode-main .container, body.print-mode-main header, body.print-mode-main .tab-nav, body.print-mode-main .tab-content { display: none !important; }
+            body.print-mode-main #printArea, body.print-mode-main #printArea * { display: block !important; }
+            body.print-mode-main .print-table, body.print-mode-main .print-table th, body.print-mode-main .print-table td { display: table !important; }
+            body.print-mode-main .print-table tr { display: table-row !important; }
+            body.print-mode-main .print-table td, body.print-mode-main .print-table th { display: table-cell !important; }
+            body.print-mode-main .btn-back-overview { display: none !important; }
+            body.print-mode-main #printArea { border: none !important; padding: 0 !important; margin: 0 !important; }
+
+            /* DRUCKSICHT REITER 2 (EIGENBELEGE & STUNDENNACHWEIS) */
+            body.print-mode-eigenbeleg header, body.print-mode-eigenbeleg .tab-nav, body.print-mode-eigenbeleg #tab1, body.print-mode-eigenbeleg .cloud-bar { display: none !important; }
+            body.print-mode-eigenbeleg .container { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+            body.print-mode-eigenbeleg #tab2 { display: block !important; }
+            body.print-mode-eigenbeleg .card { box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important; }
+            body.print-mode-eigenbeleg .card h2 { display: none !important; }
+            body.print-mode-eigenbeleg .print-header-eb { display: block !important; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+            body.print-mode-eigenbeleg .signature-field { display: block !important; margin-top: 50px; page-break-inside: avoid; }
+            body.print-mode-eigenbeleg table#logTable { display: table !important; width: 100% !important; border-collapse: collapse !important; border: 1px solid #000 !important; }
+            body.print-mode-eigenbeleg table#logTable th, body.print-mode-eigenbeleg table#logTable td { border: 1px solid #000 !important; padding: 6px 8px !important; display: table-cell !important; color: black !important; }
+            body.print-mode-eigenbeleg table#logTable tr { display: table-row !important; page-break-inside: avoid; }
+            body.print-mode-eigenbeleg .total-box { display: block !important; font-size: 1.1rem !important; margin-top: 15px !important; color: black !important; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="cloud-bar no-print">
+        <span>🟢 Cloud-Verbindung aktiv (Echtzeit-Synchronisierung)</span>
+        <span id="syncStatus" style="font-weight: normal; font-size: 0.8rem;">Synchronisiert</span>
+    </div>
+    <header class="no-print">
+        <h1>🏢 Gesamtsystem Wittelsbacherstraße 25<br><small style="font-weight: normal; color:#64748b;">Nebenkosten- & Eigenbeleg-Manager</small></h1>
+    </header>
+    
+    <!-- TAB REITER NAVIGATION -->
+    <div class="tab-nav no-print">
+        <button class="tab-btn active" onclick="switchTab('tab1')">1. Nebenkostenabrechnung</button>
+        <button class="tab-btn" onclick="switchTab('tab2')">2. Eigenbelege & Arbeitsnachweis</button>
+    </div>
+    
+    <!-- REITER 1: NEBENKOSTENABRECHNUNG -->
+    <div id="tab1" class="tab-content active">
+        <!-- GEBÄUDEÜBERSICHT & FLÄCHENANTEILE -->
+        <div class="overview-card no-print">
+            <h3 style="color: #1e40af; margin-bottom: 8px;">📊 Gebäudeübersicht & Flächenanteile (Gesamt: 377,85 m²)</h3>
+            <table class="overview-table">
+                <thead>
+                    <tr>
+                        <th>Wohneinheit</th>
+                        <th>Lage / Beschreibung</th>
+                        <th>Wohnfläche (m²)</th>
+                        <th>Anteil am Haus (%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>UG</strong></td><td>Untergeschosswohnung</td><td>71,00 m²</td><td>18,79 %</td></tr>
+                    <tr><td><strong>EG</strong></td><td>Erdgeschosswohnung (Fr. Falkner)</td><td>118,23 m²</td><td>31,29 %</td></tr>
+                    <tr><td><strong>DG 1</strong></td><td>Dachgeschoss 1 (Appartement)</td><td>45,14 m²</td><td>11,95 %</td></tr>
+                    <tr><td><strong>DG 2</strong></td><td>Dachgeschoss 2 (Wohnung)</td><td>102,65 m²</td><td>27,17 %</td></tr>
+                    <tr><td><strong>DG 3</strong></td><td>Dachgeschoss 3 (Ausgebautes Dachgeschoss)</td><td>40,83 m²</td><td>10,80 %</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 1. WOHNUNGSVERWALTUNG -->
+        <div class="card">
+            <h2>1. Wohnungen & Vorauszahlungen (monatlich)</h2>
+            <table class="summary-table">
+                <thead>
+                    <tr>
+                        <th class="col-wohnung">Wohnung</th>
+                        <th class="col-status">Status</th>
+                        <th class="col-miete">Kaltmiete (€)</th>
+                        <th class="col-vorsch">Vorauszahlung (€)</th>
+                        <th class="col-monate">Mon.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- UG -->
+                    <tr>
+                        <td><strong>UG</strong> <small>(71,00 m²)</small></td>
+                        <td>
+                            <select id="status_ug" class="status-select" onchange="updateWohnungStatus('ug')">
+                                <option value="selbst">S (Eigen)</option>
+                                <option value="vermietet">V (Verm.)</option>
+                            </select>
+                        </td>
+                        <td><input type="number" id="rent_ug" placeholder="0.00 €" disabled onchange="updateAll()"></td>
+                        <td><input type="number" id="nk_ug" placeholder="0.00 €" disabled onchange="updateAll()"></td>
+                        <td><input type="number" id="months_ug" value="12" disabled onchange="updateAll()" min="1" max="12"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="5" class="name-row-td">
+                            <div class="name-container">
+                                <label for="name_ug">Zugeordneter Mietername:</label>
+                                <input type="text" id="name_ug" value="Selbstbezug / R. Schumann" disabled onchange="updateAll()">
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- EG -->
+                    <tr>
+                        <td><strong>EG</strong> <small>(118,23 m²)</small></td>
+                        <td>
+                            <select id="status_eg" class="status-select" onchange="updateWohnungStatus('eg')">
+                                <option value="vermietet">V (Verm.)</option>
+                                <option value="selbst">S (Eigen)</option>
+                            </select>
+                        </td>
+                        <td><input type="number" id="rent_eg" placeholder="0.00 €" onchange="updateAll()"></td>
+                        <td><input type="number" id="nk_eg" placeholder="0.00 €" onchange="updateAll()"></td>
+                        <td><input type="number" id="months_eg" value="12" onchange="updateAll()" min="1" max="12"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="5" class="name-row-td">
+                            <div class="name-container">
+                                <label for="name_eg">Zugeordneter Mietername:</label>
+                                <input type="text" id="name_eg" value="Frau Tanja Falkner" onchange="updateAll()">
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- DG 1 -->
+                    <tr>
+                        <td><strong>DG 1</strong> <small>(45,14 m²)</small></td>
+                        <td>
+                            <select id="status_dg1" class="status-select" onchange="updateWohnungStatus('dg1')">
+                                <option value="vermietet">V (Verm.)</option>
+                                <option value="selbst">S (Eigen)</option>
+                            </select>
+                        </td>
+                        <td><input type="number" id="rent_dg1" placeholder="0.00 €" onchange="updateAll()"></td>
+                        <td><input type="number" id="nk_dg1" placeholder="0.00 €" onchange="updateAll()"></td>
+                        <td><input type="number" id="months_dg1" value="12" onchange="updateAll()" min="1" max="12"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="5" class="name-row-td">
+                            <div class="name-container">
+                                <label for="name_dg1">Zugeordneter Mietername:</label>
+                                <input type="text" id="name_dg1" value="Mieter Dachgeschoss 1 (Appartement)" onchange="updateAll()">
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- DG 2 -->
+                    <tr>
+                        <td><strong>DG 2</strong> <small>(102,65 m²)</small></td>
+                        <td>
+                            <select id="status_dg2" class="status-select" onchange="updateWohnungStatus('dg2')">
+                                <option value="vermietet">V (Verm.)</option>
+                                <option value="selbst">S (Eigen)</option>
+                            </select>
+                        </td>
+                        <td><input type="number" id="rent_dg2" placeholder="0.00 €" onchange="updateAll()"></td>
+                        <td><input type="number" id="nk_dg2" placeholder="0.00 €" onchange="updateAll()"></td>
+                        <td><input type="number" id="months_dg2" value="12" onchange="updateAll()" min="1" max="12"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="5" class="name-row-td">
+                            <div class="name-container">
+                                <label for="name_dg2">Zugeordneter Mietername:</label>
+                                <input type="text" id="name_dg2" value="Mieter Dachgeschoss 2 (Wohnung)" onchange="updateAll()">
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- DG 3 -->
+                    <tr>
+                        <td><strong>DG 3</strong> <small>(40,83 m²)</small></td>
+                        <td>
+                            <select id="status_dg3" class="status-select" onchange="updateWohnungStatus('dg3')">
+                                <option value="selbst">S (Eigen)</option>
+                                <option value="vermietet">V (Verm.)</option>
+                            </select>
+                        </td>
+                        <td><input type="number" id="rent_dg3" placeholder="0.00 €" disabled onchange="updateAll()"></td>
+                        <td><input type="number" id="nk_dg3" placeholder="0.00 €" disabled onchange="updateAll()"></td>
+                        <td><input type="number" id="months_dg3" value="12" disabled onchange="updateAll()" min="1" max="12"></td>
+                    </tr>
+                    <tr>
+                        <td colspan="5" class="name-row-td">
+                            <div class="name-container">
+                                <label for="name_dg3">Zugeordneter Mietername:</label>
+                                <input type="text" id="name_dg3" value="Selbstbezug / R. Schumann" disabled onchange="updateAll()">
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- DATALIST FÜR KOSTENARTEN-AUSWAHL WITH FREITEXT -->
+        <datalist id="costTypesList">
+            <option value="Grundsteuer">
+            <option value="Wasserversorgung / Abwasser">
+            <option value="Straßenreinigung">
+            <option value="Müllabfuhr">
+            <option value="Gebäudereinigung / Ungezieferbekämpfung">
+            <option value="Gartenpflege">
+            <option value="Beleuchtung / Allgemeinstrom">
+            <option value="Schornsteinreinigung / Feuerstätte">
+            <option value="Sach- und Haftpflichtversicherung">
+            <option value="Wohngebäudeversicherung">
+            <option value="Hausmeistertätigkeit">
+            <option value="Gemeinschaftsantenne / Kabelfernsehen">
+            <option value="Einrichtungen für Wäschepflege">
+            <option value="Rauchwarnmelder (Miete / Wartung)">
+            <option value="Dachrinnenreinigung">
+            <option value="Aufzug / Fahrstuhl">
+            <option value="Brenner Kundendienst">
+        </datalist>
+
+        <!-- 2. BETRIEBSKOSTEN -->
+        <div class="card">
+            <h2>2. Gesamte Betriebskosten des Hauses verwalten</h2>
+            <div id="costItemsContainer"></div>
+            <div class="grid-3" style="margin-top: 15px; background: #e2e8f0; padding: 10px; border-radius: 6px;">
+                <div>
+                    <label>Neue Kostenart (Auswählen oder eintippen)</label>
+                    <input type="text" id="newCostName" list="costTypesList" placeholder="z. B. Rauchwarnmelder...">
+                </div>
+                <div>
+                    <label>Verteilung</label>
+                    <select id="newCostType">
+                        <option value="m2">nach m²</option>
+                        <option value="direct">Direktzuordnung</option>
+                    </select>
+                </div>
+                <button class="btn-success" onclick="addCostItem()">+ Hinzufügen</button>
+            </div>
+        </div>
+
+        <!-- 3. ABRECHNUNG ERSTELLEN -->
+        <div class="card">
+            <h2>3. Berechnungs-Vorschau</h2>
+            <div class="form-group">
+                <label>Wohnung auswählen</label>
+                <select id="select_wohnung" onchange="updateAll()">
+                    <option value="ug">Untergeschoss (71,00 m²)</option>
+                    <option value="eg">Erdgeschoss (118,23 m²)</option>
+                    <option value="dg1">Dachgeschoss 1 - Appartement (45,14 m²)</option>
+                    <option value="dg2">Dachgeschoss 2 - Wohnung (102,65 m²)</option>
+                    <option value="dg3">Dachgeschoss 3 - Ausgebautes Dachgeschoss (40,83 m²)</option>
+                </select>
+            </div>
+            
+            <div id="directInputSection" class="direct-input-section">
+                <strong>Direktverbrauch / Eigene Zuordnung für gewählte Wohnung (€):</strong>
+                <div id="directInputsContainer" style="margin-top: 8px;"></div>
+                <button type="button" class="btn-success" style="margin-top: 12px; font-size: 0.9rem;" onclick="saveDirectInputsAndCalculate()">💾 Eingaben übernehmen & berechnen</button>
+            </div>
+            <div class="form-group" style="margin-top: 15px;">
+                <label>Abrechnungsjahr</label>
+                <input type="text" id="billing_year" value="2026" oninput="updateAll(); syncEigenbelegeToCosts();">
+            </div>
+            <div id="screenLiveResult" class="live-result-box">
+                Bitte Werte eingeben...
+            </div>
+            <button type="button" onclick="triggerPrint()" class="btn-success" style="background: var(--primary); margin-top: 15px;">Abrechnung nach Layout generieren & drucken</button>
+        </div>
+    </div>
+
+    <!-- REITER 2: EIGENBELEGE & ARBEITSNACHWEIS -->
+    <div id="tab2" class="tab-content">
+        <!-- AUTOMATISCHER JAHRESPLAN GENERATOR -->
+        <div class="generator-card no-print">
+            <h3 style="color: #581c87; margin-bottom: 5px;">📅 Automatischen Jahresplan generieren (aus ICS-Kalender)</h3>
+            <p style="font-size:0.85rem; color: #6b21a8; margin-top:0; margin-bottom: 10px;">
+                Laden Sie Ihre .ics-Abfallkalender-Datei hoch, um Termine automatisch zu übernehmen. Ist keine Datei gewählt, wird der Standardplan verwendet.
+            </p>
+            <div class="filter-grid">
+                <div class="form-group">
+                    <label>Abfallkalender (.ics Datei):</label>
+                    <input type="file" id="icsFileInput" accept=".ics">
+                </div>
+                <div class="form-group">
+                    <label>Jahr wählen:</label>
+                    <input type="number" id="genYear" value="2026" min="2020" max="2035">
+                </div>
+                <div class="form-group">
+                    <label>Stundensatz (€):</label>
+                    <input type="number" id="genRate" value="15.00" step="0.50">
+                </div>
+                <div class="form-group">
+                    <button class="btn-gen" onclick="generateYearData()">⚡ Jahresplan erzeugen</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- EINGABEFORMULAR -->
+        <div class="card no-print" id="formCard">
+            <h1 id="ebFormTitle">📝 Eigenbeleg Generator (Manuelle Eingabe)</h1>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Datum</label>
+                    <input type="date" id="date">
+                </div>
+                <div class="form-group">
+                    <label>Bereich / Kategorie</label>
+                    <select id="category">
+                        <option value="Hausmeistertätigkeit">Hausmeistertätigkeit</option>
+                        <option value="Treppenhausreinigung">Treppenhausreinigung</option>
+                        <option value="Gartenpflege / Heckenschnitt">Gartenpflege / Heckenschnitt</option>
+                        <option value="Winterdienst & Räumen">Winterdienst & Räumen</option>
+                        <option value="Kessel- / Brennerreinigung">Kessel- / Brennerreinigung</option>
+                        <option value="Sonstige Auslagen / Material">Sonstige Auslagen / Material</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Beschreibung / Ort</label>
+                    <input type="text" id="desc" placeholder="z.B. Mülltonnendienst">
+                </div>
+                <div class="form-group">
+                    <label>Dauer (Std.)</label>
+                    <input type="number" id="hours" step="0.25" placeholder="0.25">
+                </div>
+                <div class="form-group">
+                    <label>Stundensatz (€)</label>
+                    <input type="number" id="rate" value="15.00" step="0.50">
+                </div>
+                <div class="form-group">
+                    <label>Bar-Auslagen (€)</label>
+                    <input type="number" id="expenses" step="0.01" placeholder="0.00">
+                </div>
+            </div>
+            <button onclick="addEntry()" id="btnSubmitEB">+ Einzelnen Eintrag hinzufügen</button>
+            <button onclick="cancelEdit()" id="btnCancelEB" style="display:none; background-color:#64748b; margin-top:8px;">Abbrechen</button>
+        </div>
+
+        <!-- DRUCK-HEADER EIGENBELEGE -->
+        <div class="print-header-eb">
+            <h2>EIGENBELEG / ARBEITS- UND AUSLAGENNACHWEIS</h2>
+            <p><strong>Objekt:</strong> Wittelsbacher Straße 25, 86556 Kühbach</p>
+            <p><strong>Vermieter / Rechnungssteller:</strong> R. Schumann</p>
+        </div>
+
+        <!-- TABELLE & FILTER -->
+        <div class="card">
+            <button class="btn-print no-print" onclick="startPrintEigenbeleg()">🖨️ Druckansicht / PDF</button>
+            <h2>Übersicht der Aufwendungen</h2>
+            <div class="filter-card no-print">
+                <h3 style="font-size: 0.95rem; margin-bottom: 8px;">🔍 Ansicht filtern & Zeitraum eingrenzen</h3>
+                <div class="filter-grid">
+                    <div class="form-group">
+                        <label>Von Datum:</label>
+                        <input type="date" id="filterFrom" onchange="saveAndRenderEB()">
+                    </div>
+                    <div class="form-group">
+                        <label>Bis Datum:</label>
+                        <input type="date" id="filterTo" onchange="saveAndRenderEB()">
+                    </div>
+                    <div class="form-group">
+                        <label>Kategorie:</label>
+                        <select id="filterCategory" onchange="saveAndRenderEB()">
+                            <option value="ALL">Alle Kategorien</option>
+                            <option value="Hausmeistertätigkeit">Hausmeistertätigkeit</option>
+                            <option value="Treppenhausreinigung">Treppenhausreinigung</option>
+                            <option value="Gartenpflege / Heckenschnitt">Gartenpflege / Heckenschnitt</option>
+                            <option value="Winterdienst & Räumen">Winterdienst & Räumen</option>
+                            <option value="Kessel- / Brennerreinigung">Kessel- / Brennerreinigung</option>
+                            <option value="Sonstige Auslagen / Material">Sonstige Auslagen / Material</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <button onclick="resetFilters()" style="background-color: #64748b; padding: 9px;">Filter zurücksetzen</button>
+                    </div>
+                </div>
+
+                <!-- STUNDENSATZ VARIABLE PREISANPASSUNG -->
+                <div class="rate-changer-box">
+                    <div>
+                        <strong style="color: #1e40af; font-size: 0.85rem;">⚡ Stundensatz für gefilterte Einträge anpassen:</strong>
+                        <p style="font-size:0.75rem; color:#3b82f6; margin:0;">Erhöhen/Senken aller Stundensätze der angezeigten Liste mit 1 Klick.</p>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="number" id="globalRateInput" value="15.00" step="0.50" style="width: 90px; padding: 6px;">
+                        <button onclick="applyGlobalRate()" style="background-color: #2563eb; padding: 6px 12px; font-size: 0.85rem; width: auto;">Auf gefilterte Einträge anwenden</button>
+                    </div>
+                </div>
+
+                <button class="btn-stats" onclick="toggleStatsView()">📊 Stunden- & Tätigkeitsanalyse anzeigen / ausblenden</button>
+            </div>
+
+            <!-- AUSKLAPPBARE STUNDEN- UND STÜCKZAHL-STATISTIK -->
+            <div id="statsCard" class="stats-card no-print">
+                <h3 style="font-size: 1rem; color: #3730a3; margin-bottom: 8px;">⏳ Zeitaufwand & Kosten nach Kategorie (Gefilterter Zeitraum)</h3>
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>Tätigkeit / Kategorie</th>
+                            <th>Anzahl Einsätze</th>
+                            <th>Gesamtstunden</th>
+                            <th>Gesamtkosten (€)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statsBody"></tbody>
+                </table>
+            </div>
+
+            <table id="logTable">
+                <thead>
+                    <tr>
+                        <th>Datum</th>
+                        <th>Kategorie & Beschreibung</th>
+                        <th>Dauer</th>
+                        <th>Stundensatz</th>
+                        <th>Auslagen</th>
+                        <th>Gesamt</th>
+                        <th class="no-print">Aktion</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+            <div class="total-box">
+                Gesamtsumme (gefiltert): <span id="grandTotal">0,00 €</span>
+            </div>
+            
+            <div class="no-print" style="margin-top: 25px; padding-top: 15px; border-top: 1px solid var(--border); display: flex; gap: 10px; flex-wrap: wrap; justify-content: space-between;">
+                <div>
+                    <button class="btn-archive" onclick="archiveCurrentView()">📦 Gefilterte Einträge ins Archiv verschieben</button>
+                    <button onclick="toggleArchivedView()" id="btnShowArchive" style="background-color: #0284c7;">📁 Archivierte Einträge anzeigen</button>
+                </div>
+                <div style="display: flex; gap: 5px;">
+                    <button class="btn-transfer" onclick="exportDataToFile()">📤 Daten exportieren (Sichern)</button>
+                    <button class="btn-transfer" onclick="document.getElementById('importFileInput').click()">📥 Daten importieren</button>
+                    <input type="file" id="importFileInput" style="display:none;" accept=".json" onchange="importDataFromFile(event)">
+                </div>
+                <div>
+                    <button class="btn-danger-zone" onclick="clearAllData()">🗑️ ALLES löschen (Reset)</button>
+                </div>
+            </div>
+
+            <div class="signature-field">
+                <p style="font-size:0.85rem; margin-bottom: 40px;">
+                    Ich bestätige hiermit die ordnungsgemäße und sachgerechte Durchführung der oben aufgeführten Arbeiten sowie die Richtigkeit der getätigten Auslagen nach § 1 Abs. 1 BetrKV.
+                </p>
+                <div style="display: flex; justify-content: space-between;">
+                    <div>Ort, Datum: _______________________</div>
+                    <div>Unterschrift Vermieter: _______________________</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="backBtnBox" style="display:none; text-align:center; margin-top:20px;">
+            <button onclick="stopPrintEigenbeleg()" style="background-color:#475569; width:auto;">← Zurück zur Bearbeitung</button>
+        </div>
+    </div>
+</div>
+
+<!-- PRINT AREA FOR MAIN BILL -->
+<div id="printArea">
+    <a href="#" class="btn-back-overview no-print" onclick="document.getElementById('printArea').style.display='none'; return false;">← zurück zur Übersicht</a>
+    
+    <div class="print-sender">
+        <strong>Robert Schumann</strong><br>
+        Wittelsbacherstr. 25<br>
+        86556 Kühbach<br>
+        Tel: 08251/53360
+    </div>
+    <div class="print-receiver">
+        <strong>Nebenkostenabrechnung</strong><br>
+        Wittelsbacherstr. 25 in 86556 Kühbach – <span id="p_wohnung_name"></span><br>
+        Für <span id="p_empfaenger" style="font-weight: bold;"></span>
+    </div>
+    <div class="print-title-block">
+        <h2>Abrechnungszeitraum vom: 01.01.2026 bis zum 31.12.2026</h2>
+    </div>
+    <div class="print-meta">
+        <strong>Berechnungsgrundlagen:</strong><br>
+        Wohnfläche der Einheit: <span id="p_flaeche"></span> m² | Gesamtfläche Haus: 377.85 m²<br>
+        Berechnungszeitraum: <span id="p_zeitraum"></span> Monat(e)<br>
+        Geleistete Gesamt-Vorauszahlung im Zeitraum: <span id="p_ges_vor"></span> €
+    </div>
+    <h3>Aufstellung der laufenden Betriebskosten (nach m²):</h3>
+    <table class="print-table">
+        <thead>
+            <tr>
+                <th>Kostenart</th>
+                <th>Gesamtkosten Haus (€)</th>
+                <th>Verteilungsschlüssel</th>
+                <th>Zeitanteil</th>
+                <th>Anteil Wohnung (€)</th>
+            </tr>
+        </thead>
+        <tbody id="printTableBody"></tbody>
+    </table>
+
+    <div class="print-bottom-block">
+        <h3>Zusammenfassende Aufrechnung:</h3>
+        <div class="calculation-block">
+            <div class="calculation-row">
+                <span>Geleistete Gesamt-Vorauszahlung (Miete/Nebenkostenvorauszahlung)</span>
+                <span id="c_gesamt_vor">0,00 €</span>
+            </div>
+            <div id="directPrintDetails"></div>
+            <div class="calculation-row">
+                <span>Abzüglich laufende Betriebskosten (Anteilig nach m² berechnet)</span>
+                <span id="c_bk_ist" style="color: var(--danger);">- 0,00 €</span>
+            </div>
+            <div class="calculation-row total">
+                <span>ENDABRECHNUNGS-SALDO:</span>
+                <span id="c_final_saldo">0,00 €</span>
+            </div>
+        </div>
+        <div class="print-footer">
+            <p id="p_schlusssatz"></p>
+            <br><br>
+            <p>Mit freundlichen Grüßen,</p>
+            <p>R. Schumann</p>
+            <br>
+            <p style="font-size: 0.85rem; border-top: 1px solid #000; padding-top: 5px;"><strong>Bankverbindung:</strong> Stadtsparkasse Aichach | IBAN: DE34 720 512 10 0000 7247 24</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- FIREBASE INITIALISIERUNG ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyANVkvumZBJRWTvlIb7XWqZ8B61f",
+        databaseURL: "https://wittelsbacherstr-255v-default-rtdb.europe-west1.firebasedatabase.app"
+    };
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.database();
+    const dbRef = db.ref('wittelsbacher_daten');
+
+    /* TAB SYSTEM */
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        if(tabId === 'tab1') {
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        } else {
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        }
+        document.getElementById(tabId).classList.add('active');
+    }
+    
+    /* REITER 1 LOGIK (NEBENKOSTEN) */
+    const totalArea = 377.85; 
+    const areas = { ug: 71.00, eg: 118.23, dg1: 45.14, dg2: 102.65, dg3: 40.83 }; 
+    
+    const apartmentNames = {
+        ug: "Untergeschosswohnung",
+        eg: "Erdgeschosswohnung",
+        dg1: "Dachgeschoss 1 (Appartement)",
+        dg2: "Dachgeschoss 2 (Wohnung)",
+        dg3: "Dachgeschoss 3 (Ausgebautes Dachgeschoss)"
+    };
+    
+    let costItems = [
+        { id: 1, name: 'Hausmeistertätigkeit', type: 'm2', value: 0 },
+        { id: 2, name: 'Gartenarbeit', type: 'm2', value: 0 },
+        { id: 3, name: 'Grundsteuer', type: 'm2', value: 0 },
+        { id: 4, name: 'Wohngebäudevers.', type: 'm2', value: 0 },
+        { id: 5, name: 'Kamingehrergebühren / Feuerstätte', type: 'm2', value: 0 },
+        { id: 6, name: 'E.ON Strom Allgemein', type: 'm2', value: 0 },
+        { id: 7, name: 'Brenner Kundendienst', type: 'm2', value: 0 },
+        { id: 9, name: 'Haushaftpflichtvers.', type: 'm2', value: 0 },
+        { id: 12, name: 'Treppenhaus Reinigung', type: 'm2', value: 0 },
+        { id: 10, name: 'Müllgebühren (Eigene Tonne)', type: 'direct', value: 0 },
+        { id: 11, name: 'Ista Heizkosten', type: 'direct', value: 0 }
+    ];
+    let directValues = {}; 
+    let editingId = null; 
+    let entries = [];
+    let archivedEntries = [];
+    let showingArchived = false;
+
+    // --- ECHTZEIT FIREBASE SYNCHRONISATION ---
+    window.onload = function() {
+        document.getElementById('date').valueAsDate = new Date();
+        
+        dbRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                if (data.eigenbelege) entries = data.eigenbelege;
+                if (data.eigenbelege_archiv) archivedEntries = data.eigenbelege_archiv;
+                
+                if (data.wittelsbacher_v15_data) {
+                    const saved = data.wittelsbacher_v15_data;
+                    if (saved.costItems) {
+                        saved.costItems.forEach(savedItem => {
+                            let existing = costItems.find(i => i.id === savedItem.id || i.name.substring(0,5) === savedItem.name.substring(0,5));
+                            if(existing) existing.value = savedItem.value;
+                        });
+                    }
+                    directValues = saved.directValues || {};
+                    ['ug', 'eg', 'dg1', 'dg2', 'dg3'].forEach(k => {
+                        if(saved['status_'+k]) document.getElementById('status_'+k).value = saved['status_'+k];
+                        if(saved['name_'+k]) document.getElementById('name_'+k).value = saved['name_'+k];
+                        if(saved['rent_'+k]) document.getElementById('rent_'+k).value = saved['rent_'+k];
+                        if(saved['nk_'+k]) document.getElementById('nk_'+k).value = saved['nk_'+k];
+                        if(saved['months_'+k]) document.getElementById('months_'+k).value = saved['months_'+k];
+                        updateWohnungStatus(k, false);
+                    });
+                }
+            }
+            syncEigenbelegeToCosts();
+            renderCostItems();
+            saveAndRenderEB(false);
+            updateAll(false);
+            
+            document.getElementById('syncStatus').innerText = "Live synchronisiert";
+        });
+    };
+
+    function saveToCloud() {
+        document.getElementById('syncStatus').innerText = "Speichere...";
+        const dataToSave = {
+            eigenbelege: entries,
+            eigenbelege_archiv: archivedEntries,
+            wittelsbacher_v15_data: {
+                costItems,
+                directValues,
+                status_ug: document.getElementById('status_ug').value,
+                name_ug: document.getElementById('name_ug').value,
+                rent_ug: document.getElementById('rent_ug').value,
+                nk_ug: document.getElementById('nk_ug').value,
+                months_ug: document.getElementById('months_ug').value,
+                status_eg: document.getElementById('status_eg').value,
+                name_eg: document.getElementById('name_eg').value,
+                rent_eg: document.getElementById('rent_eg').value,
+                nk_eg: document.getElementById('nk_eg').value,
+                months_eg: document.getElementById('months_eg').value,
+                status_dg1: document.getElementById('status_dg1').value,
+                name_dg1: document.getElementById('name_dg1').value,
+                rent_dg1: document.getElementById('rent_dg1').value,
+                nk_dg1: document.getElementById('nk_dg1').value,
+                months_dg1: document.getElementById('months_dg1').value,
+                status_dg2: document.getElementById('status_dg2').value,
+                name_dg2: document.getElementById('name_dg2').value,
+                rent_dg2: document.getElementById('rent_dg2').value,
+                nk_dg2: document.getElementById('nk_dg2').value,
+                months_dg2: document.getElementById('months_dg2').value,
+                status_dg3: document.getElementById('status_dg3').value,
+                name_dg3: document.getElementById('name_dg3').value,
+                rent_dg3: document.getElementById('rent_dg3').value,
+                nk_dg3: document.getElementById('nk_dg3').value,
+                months_dg3: document.getElementById('months_dg3').value
+            }
+        };
+        dbRef.set(dataToSave).then(() => {
+            document.getElementById('syncStatus').innerText = "Gespeichert!";
+        });
+    }
+
+    function syncEigenbelegeToCosts() {
+        const year = document.getElementById('billing_year').value;
+        let sumHM = 0, sumGarten = 0, sumTreppe = 0, sumWinter = 0;
+        entries.forEach(e => {
+            if(e.date && e.date.startsWith(year)) {
+                const total = ((parseFloat(e.hours) || 0) * (parseFloat(e.rate) || 0)) + (parseFloat(e.expenses) || 0);
+                if(e.category === "Hausmeistertätigkeit" || e.category === "Kessel- / Brennerreinigung") sumHM += total;
+                else if(e.category === "Gartenpflege / Heckenschnitt") sumGarten += total;
+                else if(e.category === "Treppenhausreinigung") sumTreppe += total;
+                else if(e.category === "Winterdienst & Räumen") sumWinter += total;
+            }
+        });
+        let hmItem = costItems.find(i => i.id === 1 || i.name.includes('Hausmeister'));
+        if(hmItem) hmItem.value = sumHM + sumWinter;
+        let gartenItem = costItems.find(i => i.id === 2 || i.name.includes('Garten'));
+        if(gartenItem) gartenItem.value = sumGarten;
+        let treppeItem = costItems.find(i => i.id === 12 || i.name.includes('Treppenhaus'));
+        if(treppeItem) treppeItem.value = sumTreppe;
+    }
+
+    function updateWohnungStatus(key, shouldSave = true) {
+        const status = document.getElementById('status_'+key).value;
+        const isVermietet = (status === 'vermietet');
+        
+        document.getElementById('name_'+key).disabled = !isVermietet;
+        document.getElementById('rent_'+key).disabled = !isVermietet;
+        document.getElementById('nk_'+key).disabled = !isVermietet;
+        document.getElementById('months_'+key).disabled = !isVermietet;
+        
+        if(!isVermietet) {
+            document.getElementById('months_'+key).value = 12;
+            document.getElementById('name_'+key).value = "Selbstbezug / R. Schumann";
+        }
+        if(shouldSave) updateAll();
+    }
+
+    function updateAll(triggerCloud = true) {
+        if(triggerCloud) saveToCloud();
+        toggleDirectInputSection();
+        calculateLive();
+    }
+
+    function renderCostItems() {
+        const container = document.getElementById('costItemsContainer');
+        container.innerHTML = '';
+        costItems.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'cost-row';
+            let inputFieldHtml = (item.type === 'm2') 
+                ? `<input type="number" placeholder="Gesamtkosten (€)" value="${item.value || ''}" onchange="updateCostValue(${item.id}, this.value)">`
+                : `<div class="direct-hint">[Eintragung unten in Schritt 3 (€)]</div>`;
+            div.innerHTML = `
+                <div style="flex:2;"><strong>${item.name}</strong></div>
+                <div style="flex:1; display:flex; justify-content:center;">${inputFieldHtml}</div>
+                <button class="btn-danger btn-sm" onclick="removeCostItem(${item.id})">Löschen</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function calculateLive() {
+        const key = document.getElementById('select_wohnung').value;
+        const status = document.getElementById('status_'+key).value;
+        const wFlaeche = areas[key];
+        const months = parseFloat(document.getElementById('months_'+key).value) || 12;
+        
+        let bkAnteil = 0;
+        let directAnteilSumme = 0;
+        
+        costItems.forEach(item => {
+            if(item.type === 'm2') {
+                bkAnteil += ((item.value / totalArea) * wFlaeche / 12) * months;
+            } else if(item.type === 'direct') {
+                let val = directValues[`${key}_${item.id}`] || 0;
+                directAnteilSumme += val;
+            }
+        });
+        
+        const totalVorschuss = (parseFloat(document.getElementById('nk_'+key).value) || 0) * months;
+        const totalCosts = bkAnteil + directAnteilSumme;
+        const diff = totalVorschuss - totalCosts;
+        
+        const liveBox = document.getElementById('screenLiveResult');
+        if (status === 'selbst') {
+            liveBox.innerHTML = `🏠 Eigenkosten für Leerstand/Selbstnutzung: ${totalCosts.toFixed(2)} €`;
+            liveBox.style.borderLeftColor = "var(--primary)";
+        } else {
+            liveBox.innerHTML = diff >= 0 
+                ? `💰 GUTHABEN FÜR MIETER: ${diff.toFixed(2)} € (Kosten: ${totalCosts.toFixed(2)} € | Vorauszahlung: ${totalVorschuss.toFixed(2)} €)`
+                : `⚠️ NACHZAHLUNG FÜR MIETER: ${Math.abs(diff).toFixed(2)} € (Kosten: ${totalCosts.toFixed(2)} € | Vorauszahlung: ${totalVorschuss.toFixed(2)} €)`;
+            liveBox.style.borderLeftColor = diff >= 0 ? "var(--success)" : "var(--danger)";
+        }
+    }
+
+    function addCostItem() {
+        const name = document.getElementById('newCostName').value.trim();
+        const type = document.getElementById('newCostType').value;
+        if(!name) return alert('Name der Kostenart fehlt!');
+        costItems.push({ id: Date.now(), name, type, value: 0 });
+        document.getElementById('newCostName').value = '';
+        renderCostItems();
+        updateAll();
+    }
+
+    function removeCostItem(id) {
+        costItems = costItems.filter(item => item.id !== id);
+        renderCostItems();
+        updateAll();
+    }
+
+    function updateCostValue(id, value) {
+        const item = costItems.find(i => i.id === id);
+        if(item) item.value = parseFloat(value) || 0;
+        updateAll();
+    }
+
+    function toggleDirectInputSection() {
+        const key = document.getElementById('select_wohnung').value;
+        const container = document.getElementById('directInputsContainer');
+        const section = document.getElementById('directInputSection');
+        
+        const directItems = costItems.filter(item => item.type === 'direct');
+        if(directItems.length === 0) { section.style.display = 'none'; return; }
+        
+        section.style.display = 'block';
+        container.innerHTML = '';
+        
+        directItems.forEach(item => {
+            const div = document.createElement('div');
+            div.style.marginBottom = '8px';
+            const cacheKey = `${key}_${item.id}`;
+            const currentVal = (directValues[cacheKey] !== undefined) ? directValues[cacheKey] : '';
+            div.innerHTML = `<label>${item.name} (€):</label><input type="text" class="direct-field-input" data-cachekey="${cacheKey}" placeholder="Betrag (€)" value="${currentVal}" onchange="updateDirectValue('${cacheKey}', this.value)">`;
+            container.appendChild(div);
+        });
+    }
+
+    function updateDirectValue(cacheKey, value) {
+        let cleanVal = value.toString().replace(/\./g, '').replace(',', '.');
+        let val = parseFloat(cleanVal);
+        directValues[cacheKey] = isNaN(val) ? 0 : val;
+    }
+
+    function saveDirectInputsAndCalculate() {
+        const inputs = document.querySelectorAll('.direct-field-input');
+        inputs.forEach(input => {
+            const cacheKey = input.getAttribute('data-cachekey');
+            let cleanVal = input.value.toString().replace(/\./g, '').replace(',', '.');
+            let val = parseFloat(cleanVal);
+            directValues[cacheKey] = isNaN(val) ? 0 : val;
+        });
+        updateAll(true);
+    }
+
+    function triggerPrint() {
+        document.body.className = 'print-mode-main';
+        const key = document.getElementById('select_wohnung').value;
+        const status = document.getElementById('status_'+key).value;
+        const year = document.getElementById('billing_year').value;
+        const wFlaeche = areas[key];
+        const months = parseFloat(document.getElementById('months_'+key).value) || 12;
+        
+        const mieterName = document.getElementById('name_' + key).value;
+        const vorschussMonat = parseFloat(document.getElementById('nk_'+key).value) || 0;
+        const vorschussGesamt = vorschussMonat * months;
+        
+        let totalBkAnteil = 0;
+        let totalDirectAnteil = 0;
+        
+        const tbody = document.getElementById('printTableBody');
+        tbody.innerHTML = '';
+        
+        costItems.forEach(item => {
+            if(item.type === 'm2') {
+                let anteil = ((item.value / totalArea) * wFlaeche / 12) * months;
+                totalBkAnteil += anteil;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${item.name}</td><td>${item.value.toFixed(2)} €</td><td>${wFlaeche.toFixed(2)} m² / ${totalArea.toFixed(2)} m²</td><td>${months.toFixed(2)} Mon.</td><td>${anteil.toFixed(2)} €</td>`;
+                tbody.appendChild(tr);
+            }
+        });
+
+        const directDetailsContainer = document.getElementById('directPrintDetails');
+        directDetailsContainer.innerHTML = '';
+        
+        costItems.filter(item => item.type === 'direct').forEach(item => {
+            let val = directValues[`${key}_${item.id}`] || 0;
+            totalDirectAnteil += val;
+            
+            const div = document.createElement('div');
+            div.className = 'calculation-row';
+            div.innerHTML = `<span>Abzüglich Sonderposten: ${item.name}</span><span style="color: var(--danger);">- ${val.toFixed(2)} €</span>`;
+            directDetailsContainer.appendChild(div);
+        });
+        
+        const finalSaldo = vorschussGesamt - totalBkAnteil - totalDirectAnteil;
+        
+        document.querySelectorAll('.print-title-block h2').forEach(el => {
+            el.textContent = `Abrechnungszeitraum vom: 01.01.${year} bis zum 31.12.${year}`;
+        });
+        
+        document.getElementById('p_empfaenger').textContent = mieterName;
+        document.getElementById('p_wohnung_name').textContent = apartmentNames[key];
+        document.getElementById('p_flaeche').textContent = wFlaeche.toFixed(2);
+        document.getElementById('p_zeitraum').textContent = months.toFixed(2);
+        document.getElementById('p_ges_vor').textContent = vorschussGesamt.toFixed(2);
+        
+        document.getElementById('c_gesamt_vor').textContent = `${vorschussGesamt.toFixed(2)} €`;
+        document.getElementById('c_bk_ist').textContent = `- ${totalBkAnteil.toFixed(2)} €`;
+        
+        const finalBox = document.getElementById('c_final_saldo');
+        if(finalSaldo >= 0) {
+            finalBox.textContent = `GUTHABEN: ${finalSaldo.toFixed(2)} €`;
+            document.getElementById('p_schlusssatz').innerHTML = `Den oben stehenden Guthabenbetrag in Höhe von <strong>${finalSaldo.toFixed(2)} €</strong> überweise ich Ihnen auf Ihr Konto.`;
+        } else {
+            finalBox.textContent = `NACHZAHLUNG: ${Math.abs(finalSaldo).toFixed(2)} €`;
+            document.getElementById('p_schlusssatz').innerHTML = `Den oben stehenden Nachzahlungsbetrag in Höhe von <strong>${Math.abs(finalSaldo).toFixed(2)} €</strong> überweisen Sie bitte zeitnah auf das unten genannte Bankkonto.`;
+        }
+        
+        if (status === 'selbst') {
+            finalBox.textContent = `EIGENANTEIL: ${(totalBkAnteil + totalDirectAnteil).toFixed(2)} €`;
+            document.getElementById('p_schlusssatz').textContent = "Keine Mieterabrechnung erforderlich (Selbstnutzung/Leerstand).";
+        }
+        document.getElementById('printArea').style.display = 'block';
+        setTimeout(() => { window.print(); }, 200);
+    }
+
+    /* REITER 2 LOGIK (EIGENBELEGE & ICS-PARSER) */
+    const muellTermine2026 = [
+        { date: "2026-01-02", type: "Restmülltonne" }, { date: "2026-01-12", type: "Gelbe Tonne" }, { date: "2026-01-14", type: "Biotonne" }, { date: "2026-01-15", type: "Papiertonne" }, { date: "2026-01-16", type: "Restmülltonne" }, { date: "2026-01-28", type: "Biotonne" }, { date: "2026-01-30", type: "Restmülltonne" },
+        { date: "2026-02-09", type: "Gelbe Tonne" }, { date: "2026-02-11", type: "Biotonne" }, { date: "2026-02-12", type: "Papiertonne" }, { date: "2026-02-13", type: "Restmülltonne" }, { date: "2026-02-25", type: "Biotonne" }, { date: "2026-02-27", type: "Restmülltonne" },
+        { date: "2026-03-09", type: "Gelbe Tonne" }, { date: "2026-03-11", type: "Biotonne" }, { date: "2026-03-12", type: "Papiertonne" }, { date: "2026-03-13", type: "Restmülltonne" }, { date: "2026-03-25", type: "Biotonne" }, { date: "2026-03-27", type: "Restmülltonne" },
+        { date: "2026-04-13", type: "Gelbe Tonne" }, { date: "2026-04-15", type: "Biotonne" }, { date: "2026-04-16", type: "Papiertonne" }, { date: "2026-04-17", type: "Restmülltonne" }, { date: "2026-04-29", type: "Biotonne" },
+        { date: "2026-05-01", type: "Restmülltonne" }, { date: "2026-05-11", type: "Gelbe Tonne" }, { date: "2026-05-13", type: "Biotonne" }, { date: "2026-05-14", type: "Papiertonne" }, { date: "2026-05-15", type: "Restmülltonne" }, { date: "2026-05-27", type: "Biotonne" }, { date: "2026-05-29", type: "Restmülltonne" },
+        { date: "2026-06-08", type: "Gelbe Tonne" }, { date: "2026-06-10", type: "Biotonne" }, { date: "2026-06-11", type: "Papiertonne" }, { date: "2026-06-12", type: "Restmülltonne" }, { date: "2026-06-24", type: "Biotonne" }, { date: "2026-06-26", type: "Restmülltonne" },
+        { date: "2026-07-08", type: "Biotonne" }, { date: "2026-07-10", type: "Restmülltonne" }, { date: "2026-07-13", type: "Gelbe Tonne" }, { date: "2026-07-16", type: "Papiertonne" }, { date: "2026-07-22", type: "Biotonne" }, { date: "2026-07-24", type: "Restmülltonne" },
+        { date: "2026-08-05", type: "Biotonne" }, { date: "2026-08-07", type: "Restmülltonne" }, { date: "2026-08-10", type: "Gelbe Tonne" }, { date: "2026-08-13", type: "Papiertonne" }, { date: "2026-08-19", type: "Biotonne" }, { date: "2026-08-21", type: "Restmülltonne" },
+        { date: "2026-09-02", type: "Biotonne" }, { date: "2026-09-04", type: "Restmülltonne" }, { date: "2026-09-07", type: "Gelbe Tonne" }, { date: "2026-09-10", type: "Papiertonne" }, { date: "2026-09-16", type: "Biotonne" }, { date: "2026-09-18", type: "Restmülltonne" }, { date: "2026-09-30", type: "Biotonne" },
+        { date: "2026-10-02", type: "Restmülltonne" }, { date: "2026-10-05", type: "Gelbe Tonne" }, { date: "2026-10-08", type: "Papiertonne" }, { date: "2026-10-14", type: "Biotonne" }, { date: "2026-10-16", type: "Restmülltonne" }, { date: "2026-10-28", type: "Biotonne" }, { date: "2026-10-30", type: "Restmülltonne" },
+        { date: "2026-11-02", type: "Gelbe Tonne" }, { date: "2026-11-05", type: "Papiertonne" }, { date: "2026-11-11", type: "Biotonne" }, { date: "2026-11-13", type: "Restmülltonne" }, { date: "2026-11-25", type: "Biotonne" }, { date: "2026-11-27", type: "Restmülltonne" },
+        { date: "2026-12-07", type: "Gelbe Tonne" }, { date: "2026-12-09", type: "Biotonne" }, { date: "2026-12-10", type: "Papiertonne" }, { date: "2026-12-11", type: "Restmülltonne" }, { date: "2026-12-23", type: "Biotonne" }, { date: "2026-12-24", type: "Restmülltonne" }
+    ];
+
+    function parseIcsContent(icsData) {
+        const events = [];
+        const lines = icsData.split(/\r\n|\n|\r/);
+        let currentEvent = null;
+
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].trim();
+            if (line === 'BEGIN:VEVENT') {
+                currentEvent = {};
+            } else if (line === 'END:VEVENT') {
+                if (currentEvent && currentEvent.date && currentEvent.type) {
+                    events.push(currentEvent);
+                }
+                currentEvent = null;
+            } else if (currentEvent) {
+                if (line.startsWith('DTSTART')) {
+                    const dateMatch = line.match(/(\d{4})(\d{2})(\d{2})/);
+                    if (dateMatch) {
+                        currentEvent.date = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+                    }
+                } else if (line.startsWith('SUMMARY:')) {
+                    currentEvent.type = line.replace('SUMMARY:', '').trim();
+                }
+            }
+        }
+        return events;
+    }
+
+    function generateYearData() {
+        const fileInput = document.getElementById('icsFileInput');
+        const year = parseInt(document.getElementById('genYear').value) || 2026;
+        const rate = parseFloat(document.getElementById('genRate').value) || 15.00;
+
+        if (fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const icsContent = e.target.result;
+                const extractedTermine = parseIcsContent(icsContent);
+
+                if (extractedTermine.length === 0) {
+                    alert("Es wurden keine Termine in der .ics-Datei gefunden.");
+                    return;
+                }
+
+                if(!confirm(`Möchtest du ${extractedTermine.length} Termine aus der ICS-Datei importieren und ergänzen?`)) return;
+
+                processTermineAndAdd(extractedTermine, year, rate);
+            };
+            reader.readAsText(file);
+        } else {
+            if(!confirm(`Möchtest du alle Standard-Einträge inkl. Mülltonnendienst für ${year} erzeugen?`)) return;
+            processTermineAndAdd(muellTermine2026, year, rate);
+        }
+    }
+
+    function processTermineAndAdd(muellTermine, year, rate) {
+        let generated = [];
+        muellTermine.forEach(item => {
+            let abfuhrDatum = new Date(item.date);
+            let bereitstellungDatum = new Date(abfuhrDatum);
+            
+            bereitstellungDatum.setDate(bereitstellungDatum.getDate() - 1);
+            let dateVortag = bereitstellungDatum.toISOString().split('T')[0];
+            let dateAbfuhr = item.date;
+            generated.push({
+                id: Date.now() + Math.random(),
+                date: dateVortag,
+                category: "Hausmeistertätigkeit",
+                desc: `Mülltonnendienst: ${item.type} herausgestellt (für morgige Leerung)`,
+                hours: "0.25",
+                rate: rate,
+                expenses: "0.00"
+            });
+            generated.push({
+                id: Date.now() + Math.random(),
+                date: dateAbfuhr,
+                category: "Hausmeistertätigkeit",
+                desc: `Mülltonnendienst: ${item.type} nach Leerung zurückgestellt`,
+                hours: "0.25",
+                rate: rate,
+                expenses: "0.00"
+            });
+        });
+
+        function getRandomDate(month, startDay=1, endDay=28) {
+            let day = Math.floor(Math.random() * (endDay - startDay + 1)) + startDay;
+            let d = new Date(year, month - 1, day);
+            if (d.getDay() === 0) d.setDate(d.getDate() + 1);
+            return d.toISOString().split('T')[0];
+        }
+
+        generated.push({ id: Date.now() + Math.random(), date: getRandomDate(6, 10, 25), category: "Gartenpflege / Heckenschnitt", desc: "Thujen- & Buchenhecke geschnitten, Schnittgut entsorgt", hours: "3.5", rate: rate, expenses: "12.00" });
+        generated.push({ id: Date.now() + Math.random(), date: getRandomDate(9, 10, 25), category: "Gartenpflege / Heckenschnitt", desc: "Rückschnitt Hecken & Sträucher für Wintersaison", hours: "3.0", rate: rate, expenses: "10.00" });
+        generated.push({ id: Date.now() + Math.random(), date: getRandomDate(10, 1, 15), category: "Kessel- / Brennerreinigung", desc: "Brennraum gründlich gereinigt, Ruß entfernt", hours: "2.5", rate: rate, expenses: "0.00" });
+        for (let m = 1; m <= 12; m++) {
+            generated.push({ id: Date.now() + Math.random(), date: getRandomDate(m, 1, 12), category: "Treppenhausreinigung", desc: "Treppenhaus gewischt, Geländer & Haustür gereinigt", hours: "1.5", rate: rate, expenses: "0.00" });
+            generated.push({ id: Date.now() + Math.random(), date: getRandomDate(m, 15, 28), category: "Treppenhausreinigung", desc: "Flur gewischt & Kellerabgang gereinigt", hours: "1.5", rate: rate, expenses: "0.00" });
+        }
+        for (let m = 5; m <= 10; m++) {
+            generated.push({ id: Date.now() + Math.random(), date: getRandomDate(m, 5, 25), category: "Gartenpflege / Heckenschnitt", desc: "Rasen gemäht, Rasenkanten & Unkraut entfernt", hours: "2.0", rate: rate, expenses: "0.00" });
+        }
+        [1, 2, 3, 12].forEach(m => {
+            generated.push({ id: Date.now() + Math.random(), date: getRandomDate(m, 2, 20), category: "Winterdienst & Räumen", desc: "Gehweg & Hofzufahrt geräumt und gestreut", hours: "1.0", rate: rate, expenses: "8.50" });
+        });
+
+        entries.push(...generated);
+        saveAndRenderEB();
+        alert(`Erfolg! Es wurden ${generated.length} Einträge erstellt.`);
+    }
+
+    function applyGlobalRate() {
+        const newRate = parseFloat(document.getElementById('globalRateInput').value);
+        if (isNaN(newRate) || newRate < 0) {
+            alert("Bitte einen gültigen Stundensatz eingeben.");
+            return;
+        }
+
+        const filterFrom = document.getElementById('filterFrom').value;
+        const filterTo = document.getElementById('filterTo').value;
+        const selectedFilter = document.getElementById('filterCategory').value;
+
+        let activeList = showingArchived ? archivedEntries : entries;
+        let count = 0;
+
+        activeList.forEach(e => {
+            if (selectedFilter !== 'ALL' && e.category !== selectedFilter) return;
+            if (filterFrom && e.date < filterFrom) return;
+            if (filterTo && e.date > filterTo) return;
+
+            if (parseFloat(e.hours) > 0) {
+                e.rate = newRate;
+                count++;
+            }
+        });
+
+        if (count > 0) {
+            saveAndRenderEB();
+            alert(`✅ ${count} Einträge wurden erfolgreich auf ${newRate.toFixed(2)} €/Std. angepasst!`);
+        } else {
+            alert("Keine passenden Einträge für eine Anpassung gefunden.");
+        }
+    }
+
+    function toggleStatsView() {
+        const card = document.getElementById('statsCard');
+        if (card.style.display === 'block') {
+            card.style.display = 'none';
+        } else {
+            card.style.display = 'block';
+            renderStatsTable();
+        }
+    }
+
+    function renderStatsTable() {
+        const filterFrom = document.getElementById('filterFrom').value;
+        const filterTo = document.getElementById('filterTo').value;
+        const selectedFilter = document.getElementById('filterCategory').value;
+        let activeList = showingArchived ? archivedEntries : entries;
+
+        const statsMap = {};
+
+        activeList.forEach(e => {
+            if (selectedFilter !== 'ALL' && e.category !== selectedFilter) return;
+            if (filterFrom && e.date < filterFrom) return;
+            if (filterTo && e.date > filterTo) return;
+
+            const cat = e.category || 'Sonstiges';
+            const h = parseFloat(e.hours) || 0;
+            const r = parseFloat(e.rate) || 0;
+            const exp = parseFloat(e.expenses) || 0;
+            const rowTotal = (h * r) + exp;
+
+            if (!statsMap[cat]) {
+                statsMap[cat] = { count: 0, totalHours: 0, totalCost: 0 };
+            }
+
+            statsMap[cat].count += 1;
+            statsMap[cat].totalHours += h;
+            statsMap[cat].totalCost += rowTotal;
+        });
+
+        const tbody = document.getElementById('statsBody');
+        tbody.innerHTML = '';
+
+        let overallHours = 0;
+        let overallCost = 0;
+        let overallCount = 0;
+
+        for (const [cat, data] of Object.entries(statsMap)) {
+            overallHours += data.totalHours;
+            overallCost += data.totalCost;
+            overallCount += data.count;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${cat}</strong></td>
+                <td>${data.count} Einsätze</td>
+                <td><strong>${data.totalHours.toFixed(2)} Std.</strong></td>
+                <td>${data.totalCost.toFixed(2)} €</td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        if (overallCount > 0) {
+            const trTotal = document.createElement('tr');
+            trTotal.style.background = '#e2e8f0';
+            trTotal.innerHTML = `
+                <td><strong>GESAMT BERECHNET</strong></td>
+                <td><strong>${overallCount} Einsätze</strong></td>
+                <td><strong style="color: #4f46e5;">${overallHours.toFixed(2)} Std.</strong></td>
+                <td><strong style="color: #1e3a8a;">${overallCost.toFixed(2)} €</strong></td>
+            `;
+            tbody.appendChild(trTotal);
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4">Keine Daten für diesen Zeitraum vorhanden.</td></tr>';
+        }
+    }
+
+    function saveAndRenderEB(triggerCloud = true) {
+        let activeList = showingArchived ? archivedEntries : entries;
+        activeList.sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        if (triggerCloud) {
+            saveToCloud();
+        }
+        
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        
+        const selectedFilter = document.getElementById('filterCategory').value;
+        const filterFrom = document.getElementById('filterFrom').value;
+        const filterTo = document.getElementById('filterTo').value;
+        let total = 0;
+        activeList.forEach((e) => {
+            if (selectedFilter !== 'ALL' && e.category !== selectedFilter) return;
+            if (filterFrom && e.date < filterFrom) return;
+            if (filterTo && e.date > filterTo) return;
+            const h = parseFloat(e.hours) || 0;
+            const r = parseFloat(e.rate) || 0;
+            const exp = parseFloat(e.expenses) || 0;
+            const rowTotal = (h * r) + exp;
+            total += rowTotal;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${formatDate(e.date)}</td>
+                <td><strong>${e.category}</strong><br><small>${e.desc}</small></td>
+                <td>${h > 0 ? h + ' Std.' : '-'}</td>
+                <td>${h > 0 ? r.toFixed(2) + ' €' : '-'}</td>
+                <td>${exp > 0 ? exp.toFixed(2) + ' €' : '-'}</td>
+                <td><strong>${rowTotal.toFixed(2)} €</strong></td>
+                <td class="no-print" style="white-space: nowrap;">
+                    <button class="btn-edit" onclick="editEntryById(${e.id})">✏️ Bearbeiten</button>
+                    <button class="btn-delete" onclick="deleteEntryById(${e.id || 0}, '${e.date}')">🗑️ Löschen</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        document.getElementById('grandTotal').innerText = total.toFixed(2).replace('.', ',') + ' €';
+        
+        if (document.getElementById('statsCard').style.display === 'block') {
+            renderStatsTable();
+        }
+
+        syncEigenbelegeToCosts();
+        renderCostItems();
+        calculateLive();
+    }
+
+    function addEntry() {
+        if(showingArchived) { alert("Schalte erst wieder aus dem Archiv um!"); return; }
+        const date = document.getElementById('date').value;
+        const category = document.getElementById('category').value;
+        const desc = document.getElementById('desc').value;
+        const hours = document.getElementById('hours').value;
+        const rate = document.getElementById('rate').value;
+        const expenses = document.getElementById('expenses').value;
+        if (!date) { alert('Bitte Datum angeben!'); return; }
+        if (editingId !== null) {
+            let targetList = showingArchived ? archivedEntries : entries;
+            let item = targetList.find(e => e.id === editingId);
+            if(item) {
+                item.date = date;
+                item.category = category;
+                item.desc = desc;
+                item.hours = hours;
+                item.rate = rate;
+                item.expenses = expenses;
+            }
+            cancelEdit();
+        } else {
+            entries.push({ 
+                id: Date.now() + Math.random(), 
+                date, 
+                category, 
+                desc, 
+                hours, 
+                rate, 
+                expenses 
+            });
+        }
+        
+        saveAndRenderEB();
+        document.getElementById('desc').value = '';
+        document.getElementById('hours').value = '';
+        document.getElementById('expenses').value = '';
+    }
+
+    function editEntryById(id) {
+        let activeList = showingArchived ? archivedEntries : entries;
+        let item = activeList.find(e => e.id === id);
+        if(!item) return;
+        editingId = id;
+        document.getElementById('date').value = item.date;
+        document.getElementById('category').value = item.category;
+        document.getElementById('desc').value = item.desc;
+        document.getElementById('hours').value = item.hours;
+        document.getElementById('rate').value = item.rate;
+        document.getElementById('expenses').value = item.expenses;
+        document.getElementById('ebFormTitle').innerText = "✏️ Eintrag bearbeiten";
+        document.getElementById('btnSubmitEB').innerText = "💾 Änderung speichern";
+        document.getElementById('btnSubmitEB').classList.add('btn-success');
+        document.getElementById('btnCancelEB').style.display = 'block';
+        document.getElementById('formCard').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelEdit() {
+        editingId = null;
+        document.getElementById('ebFormTitle').innerText = "📝 Eigenbeleg Generator (Manuelle Eingabe)";
+        document.getElementById('btnSubmitEB').innerText = "+ Einzelnen Eintrag hinzufügen";
+        document.getElementById('btnSubmitEB').classList.remove('btn-success');
+        document.getElementById('btnCancelEB').style.display = 'none';
+        document.getElementById('desc').value = '';
+        document.getElementById('hours').value = '';
+        document.getElementById('expenses').value = '';
+        document.getElementById('date').valueAsDate = new Date();
+    }
+
+    function deleteEntryById(id, dateStr) {
+        if (confirm(`Soll der Eintrag vom ${formatDate(dateStr)} wirklich gelöscht werden?`)) {
+            if (showingArchived) {
+                archivedEntries = archivedEntries.filter(e => e.id !== id);
+            } else {
+                entries = entries.filter(e => e.id !== id);
+            }
+            if(editingId === id) cancelEdit();
+            saveAndRenderEB();
+        }
+    }
+
+    function resetFilters() {
+        document.getElementById('filterFrom').value = '';
+        document.getElementById('filterTo').value = '';
+        document.getElementById('filterCategory').value = 'ALL';
+        saveAndRenderEB(false);
+    }
+
+    function archiveCurrentView() {
+        if(showingArchived) return;
+        const filterFrom = document.getElementById('filterFrom').value;
+        const filterTo = document.getElementById('filterTo').value;
+        const selectedFilter = document.getElementById('filterCategory').value;
+        const toArchive = entries.filter(e => {
+            if (selectedFilter !== 'ALL' && e.category !== selectedFilter) return false;
+            if (filterFrom && e.date < filterFrom) return false;
+            if (filterTo && e.date > filterTo) return false;
+            return true;
+        });
+        if (toArchive.length === 0) { alert("Keine Einträge gefunden."); return; }
+        if(!confirm(`${toArchive.length} Eintrag/Einträge ins Archiv verschieben?`)) return;
+        archivedEntries.push(...toArchive);
+        entries = entries.filter(e => !toArchive.includes(e));
+        saveToCloud();
+        alert("Erfolgreich archiviert!");
+        resetFilters();
+    }
+
+    function toggleArchivedView() {
+        showingArchived = !showingArchived;
+        const btn = document.getElementById('btnShowArchive');
+        if(showingArchived) {
+            btn.innerText = "📋 Aktuelle Liste anzeigen";
+            btn.style.backgroundColor = "#059669";
+        } else {
+            btn.innerText = "📁 Archivierte Einträge anzeigen";
+            btn.style.backgroundColor = "#0284c7";
+        }
+        saveAndRenderEB(false);
+    }
+
+    function clearAllData() {
+        if (confirm("⚠️ ACHTUNG: wirklich ALLE Daten löschen?")) {
+            entries = [];
+            archivedEntries = [];
+            saveToCloud();
+            alert("Daten gelöscht.");
+        }
+    }
+
+    function exportDataToFile() {
+        dbRef.once('value').then((snapshot) => {
+            const fullBackup = snapshot.val() || {};
+            const jsonStr = JSON.stringify(fullBackup, null, 2);
+            const blob = new Blob([jsonStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `Sicherung_Wittelsbacher25_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    }
+
+    function importDataFromFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (confirm("Möchtest du diese Daten wirklich in die Cloud hochladen und alte Daten überschreiben?")) {
+                    dbRef.set(imported).then(() => {
+                        alert("✅ Daten erfolgreich importiert und in die Cloud synchronisiert!");
+                    });
+                }
+            } catch (err) {
+                alert("❌ Fehler beim Importieren der Datei: " + err.message);
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function formatDate(d) {
+        if(!d) return '';
+        const parts = d.split('-');
+        return `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+
+    function startPrintEigenbeleg() {
+        document.body.className = 'print-mode-eigenbeleg';
+        document.getElementById('backBtnBox').style.display = 'block';
+        setTimeout(() => { 
+            window.print(); 
+        }, 300);
+    }
+
+    function stopPrintEigenbeleg() {
+        document.body.className = '';
+        document.getElementById('backBtnBox').style.display = 'none';
+    }
+</script>
+</body>
+</html>
