@@ -1,25 +1,50 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<script>
-(function() {
-    // Leg hier dein gewünschtes Passwort fest:
-    const MEIN_PASSWORT = "Geheim1969"; 
 
-    // Prüfen, ob für diese Sitzung schon angemeldet wurde
-    if (sessionStorage.getItem("app_authenticated") !== "true") {
-        let eingabe = prompt("Bitte Passwort eingeben, um auf die Hausverwaltung zuzugreifen:");
-        
-        if (eingabe === MEIN_PASSWORT) {
-            sessionStorage.setItem("app_authenticated", "true");
-        } else {
-            alert("Falsches Passwort! Zugriff verweigert.");
-            document.write("<h2 style='text-align:center; margin-top:50px; color:red; font-family:sans-serif;'>Zugriff verweigert. Bitte Seite neu laden und Passwort eingeben.</h2>");
-            window.stop(); // Stoppt das Weiterladen der Seite
-        }
+<style>
+    #auth-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: #121212; z-index: 999999; display: flex;
+        justify-content: center; align-items: center; font-family: sans-serif; color: white;
     }
-})();
+    .auth-box { background: #1e1e1e; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.5); width: 85%; max-width: 350px; }
+    .auth-box input { width: 100%; padding: 12px; margin: 15px 0; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 16px; box-sizing: border-box; }
+    .auth-box button { width: 100%; padding: 12px; background: #2ea043; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
+</style>
+<script>
+    const MEIN_PASSWORT = "Geheim1969"; // Hier dein Passwort eintragen
+
+    document.addEventListener("DOMContentLoaded", function() {
+        if (sessionStorage.getItem("app_authenticated") === "true") return;
+
+        let overlay = document.createElement("div");
+        overlay.id = "auth-overlay";
+        overlay.innerHTML = `
+            <div class="auth-box">
+                <h3>Hausverwaltung</h3>
+                <p style="font-size: 14px; color: #aaa;">Bitte Passwort eingeben:</p>
+                <form id="auth-form">
+                    <input type="password" id="auth-pw" placeholder="Passwort" required autocomplete="current-password">
+                    <button type="submit">Anmelden</button>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        document.getElementById("auth-form").addEventListener("submit", function(e) {
+            e.preventDefault();
+            let eingabe = document.getElementById("auth-pw").value;
+            if (eingabe === MEIN_PASSWORT) {
+                sessionStorage.setItem("app_authenticated", "true");
+                overlay.remove();
+            } else {
+                alert("Falsches Passwort!");
+            }
+        });
+    });
 </script>
+
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
